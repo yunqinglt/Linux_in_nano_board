@@ -1,3 +1,6 @@
 [submodule "third_party/CherryUSB"]
 	path = third_party/CherryUSB
 	url = git@github.com:cherry-embedded/CherryUSB.git
+[submodule "third_party/stm32_in_c"]
+	path = third_party/stm32_in_c
+	url = git@github.com:yunqinglt/stm32_in_c.git
