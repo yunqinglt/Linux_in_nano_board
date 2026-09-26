@@ -27,7 +27,7 @@ extern "C" {
 
 /* DEBUG UATR Definition */
 #ifndef DEBUG
-#define DEBUG   DEBUG_UART1
+#define DEBUG   DEBUG_UART2
 #endif
 
 /* SDI Printf Definition */
