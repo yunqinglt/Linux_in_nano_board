@@ -42,9 +42,11 @@ from .protocol import DEFAULT_PID, DEFAULT_VID
 from .transport import UsbBulkTransport, UsbDeviceInfo, enumerate_devices
 
 
-REPOSITORY = Path(__file__).resolve().parents[2]
-DEFAULT_RESOURCES = REPOSITORY / "res"
-DEFAULT_IMAGE = REPOSITORY / "host" / "out" / "mipsel-emu-8m.img"
+# 上位机已归档到 flash/host；资源仍由项目根目录的 res 提供。
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+TOOL_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_RESOURCES = PROJECT_ROOT / "res"
+DEFAULT_IMAGE = TOOL_ROOT / "out" / "mipsel-emu-8m.img"
 
 
 class Worker(QObject):

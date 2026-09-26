@@ -23,7 +23,7 @@
 
 ## 结论
 
-当前 `User/usb_vendor.c` 使用的是 `USBFSD`（`0x50000000`）、`RCC_AHBPeriph_USBFS` 和 `USBFS_IRQn`。这条路径与参考工程的 PA11/PA12 USBD 连接不一致，不能通过简单修改中断函数名修复。迁移应使用 WCH 官方 USBD 分层栈，并保留 PA11/PA12 的断开、延时、重新连接及 EXTI18 唤醒流程。
+迁移前的 `usb_vendor.c` 使用的是 `USBFSD`（`0x50000000`）、`RCC_AHBPeriph_USBFS` 和 `USBFS_IRQn`。这条路径与参考工程的 PA11/PA12 USBD 连接不一致，不能通过简单修改中断函数名修复。完成迁移后的历史实现现归档在 `flash/firmware/User/usb_vendor.c`；它使用 WCH 官方 USBD 分层栈，并保留 PA11/PA12 的断开、延时、重新连接及 EXTI18 唤醒流程。
 
 目标头文件未公开 `0x40005C00/0x40006000` 的寄存器类型，但参考工程直接使用这些地址且针对同一 D6 器件编译运行；因此移植时应保留官方 `usb_regs.h` 的硬编码寄存器定义，不要把其替换为 `USBFSD` 结构体。
 
@@ -38,4 +38,3 @@
 ## 最小枚举验证
 
 先只接入 `INFO` 命令和设备/配置/字符串描述符，烧录后检查 Windows PnP 是否出现 `1209:2036`。枚举成功后再接入 READ/WRITE/CRC，避免把 SPI 阻塞错误与 USB 控制器错误混在一起。
-

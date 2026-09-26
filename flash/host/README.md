@@ -18,7 +18,7 @@ libusb-1.0 backend；因此不会依赖 PyUSB 在 Windows 上不稳定的自动 
 建议使用 64 位 Python 3.10 或更新版本：
 
 ```powershell
-cd C:\Users\云晴\mounriver-studio-projects\CH32V203F6P\host
+cd C:\Users\云晴\mounriver-studio-projects\CH32V203F6P\flash\host
 py -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 .\.venv\Scripts\python -m ch32_image_tool
@@ -67,7 +67,7 @@ Manifest 固定头为 64 字节，每个文件项为 64 字节。文件项含固
 
 ```powershell
 python -m ch32_image_tool.cli pack `
-  --resources ..\res `
+  --resources ..\..\res `
   --output .\out\mipsel-emu-8m.img
 python -m ch32_image_tool.cli inspect .\out\mipsel-emu-8m.img
 ```

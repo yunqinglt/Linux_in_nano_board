@@ -9,18 +9,8 @@
 #define STORAGE_CS_PSRAM            GPIO_Pin_1
 #define STORAGE_SPI_TIMEOUT         100000u
 
-#define STORAGE_CAPACITY            (8u * 1024u * 1024u)
-#define STORAGE_ERASE_SIZE          4096u
-#define STORAGE_PAGE_SIZE           256u
-
-#define W25_CMD_WRITE_ENABLE        0x06u
-#define W25_CMD_READ_STATUS1        0x05u
 #define W25_CMD_READ_DATA           0x03u
-#define W25_CMD_PAGE_PROGRAM        0x02u
-#define W25_CMD_SECTOR_ERASE        0x20u
 #define W25_CMD_JEDEC_ID            0x9Fu
-#define W25_STATUS_BUSY             0x01u
-#define W25_STATUS_WRITE_ENABLE     0x02u
 
 #define APS_CMD_READ_DATA           0x03u
 #define APS_CMD_WRITE_DATA          0x02u
@@ -30,7 +20,7 @@
 
 typedef struct
 {
-    usb_vendor_info_t info;
+    spi_storage_info_t info;
 } spi_storage_context_t;
 
 static spi_storage_context_t g_storage;
@@ -66,14 +56,14 @@ static uint8_t spi_transfer(uint8_t transmitted, uint8_t *received)
     return 1u;
 }
 
-/* 发送一个字节并忽略同时收到的数据。 */
+/* 发送一个字节并丢弃同时收到的数据。 */
 static uint8_t spi_send(uint8_t value)
 {
     uint8_t ignored;
     return spi_transfer(value, &ignored);
 }
 
-/* 等待移位器空闲，确保拉高片选前命令已结束。 */
+/* 等待移位器空闲，确保拉高片选前命令已经结束。 */
 static uint8_t spi_finish(void)
 {
     return spi_wait(SPI_I2S_FLAG_BSY, RESET);
@@ -127,65 +117,6 @@ static uint8_t storage_id_is_floating(const uint8_t *id, uint32_t length)
         }
     }
     return (uint8_t)(all_zero || all_ff);
-}
-
-/* 读取 W25Q64 状态寄存器 1。 */
-static uint8_t w25_read_status(uint8_t *status)
-{
-    uint8_t ok;
-
-    storage_select(STORAGE_CS_NOR);
-    ok = spi_send(W25_CMD_READ_STATUS1);
-    if(ok)
-    {
-        ok = spi_transfer(0xFFu, status);
-    }
-    if(ok)
-    {
-        ok = spi_finish();
-    }
-    storage_deselect(STORAGE_CS_NOR);
-    return ok;
-}
-
-/* 轮询 WIP 位并在指定毫秒数后超时。 */
-static uint8_t w25_wait_ready(uint32_t timeout_ms)
-{
-    uint8_t status;
-
-    while(timeout_ms-- != 0u)
-    {
-        if(!w25_read_status(&status))
-        {
-            return 0u;
-        }
-        if((status & W25_STATUS_BUSY) == 0u)
-        {
-            return 1u;
-        }
-        Delay_Ms(1u);
-    }
-    return 0u;
-}
-
-/* 发送写使能并确认 WEL 位已经置位。 */
-static uint8_t w25_write_enable(void)
-{
-    uint8_t status;
-    uint8_t ok;
-
-    storage_select(STORAGE_CS_NOR);
-    ok = spi_send(W25_CMD_WRITE_ENABLE);
-    if(ok)
-    {
-        ok = spi_finish();
-    }
-    storage_deselect(STORAGE_CS_NOR);
-    if(!ok || !w25_read_status(&status))
-    {
-        return 0u;
-    }
-    return (uint8_t)((status & W25_STATUS_WRITE_ENABLE) != 0u);
 }
 
 /* 读取 W25Q64 的三字节 JEDEC ID。 */
@@ -261,56 +192,33 @@ static uint8_t aps_read_id(uint8_t id[4])
     return ok;
 }
 
-/* 从 NOR 或 PSRAM 顺序读取一段数据。 */
-static usb_vendor_status_t storage_read(void *context,
-                                        usb_vendor_target_t target,
-                                        uint32_t address,
-                                        uint8_t *data,
-                                        uint32_t length)
+/* 在指定片选上执行带 24 位地址的顺序读命令。 */
+static spi_storage_status_t storage_read(uint16_t chip_select,
+                                         uint32_t capacity,
+                                         uint32_t address,
+                                         uint8_t *data,
+                                         uint32_t length)
 {
-    spi_storage_context_t *storage = (spi_storage_context_t *)context;
-    uint16_t chip_select;
-    uint8_t command;
     uint32_t index;
     uint8_t ok;
 
-    if(storage == NULL || (data == NULL && length != 0u))
+    if(data == NULL && length != 0u)
     {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
+        return SPI_STORAGE_STATUS_INVALID_ARGUMENT;
     }
-    if(target == USB_VENDOR_TARGET_NOR)
+    if(!storage_range_valid(address, length, capacity))
     {
-        if((storage->info.flags & USB_VENDOR_INFO_FLAG_NOR_PRESENT) == 0u)
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        chip_select = STORAGE_CS_NOR;
-        command = W25_CMD_READ_DATA;
-    }
-    else if(target == USB_VENDOR_TARGET_PSRAM)
-    {
-        if((storage->info.flags & USB_VENDOR_INFO_FLAG_PSRAM_PRESENT) == 0u)
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        chip_select = STORAGE_CS_PSRAM;
-        command = APS_CMD_READ_DATA;
-    }
-    else
-    {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-    }
-    if(!storage_range_valid(address, length, STORAGE_CAPACITY))
-    {
-        return USB_VENDOR_STATUS_OUT_OF_RANGE;
+        return SPI_STORAGE_STATUS_OUT_OF_RANGE;
     }
     if(length == 0u)
     {
-        return USB_VENDOR_STATUS_OK;
+        return SPI_STORAGE_STATUS_OK;
     }
 
     storage_select(chip_select);
-    ok = (uint8_t)(spi_send(command) && storage_send_address(address));
+    ok = (uint8_t)(spi_send(chip_select == STORAGE_CS_NOR ?
+                            W25_CMD_READ_DATA : APS_CMD_READ_DATA) &&
+                   storage_send_address(address));
     for(index = 0u; index < length && ok; ++index)
     {
         ok = spi_transfer(0xFFu, &data[index]);
@@ -320,195 +228,11 @@ static usb_vendor_status_t storage_read(void *context,
         ok = spi_finish();
     }
     storage_deselect(chip_select);
-    return ok ? USB_VENDOR_STATUS_OK : USB_VENDOR_STATUS_IO_ERROR;
+    return ok ? SPI_STORAGE_STATUS_OK : SPI_STORAGE_STATUS_IO_ERROR;
 }
-
-/* 按页边界切分并编程 W25Q64 数据。 */
-static usb_vendor_status_t storage_write_nor(uint32_t address,
-                                             const uint8_t *data,
-                                             uint32_t length)
-{
-    while(length != 0u)
-    {
-        uint32_t page_remaining = STORAGE_PAGE_SIZE -
-                                  (address & (STORAGE_PAGE_SIZE - 1u));
-        uint32_t amount = length < page_remaining ? length : page_remaining;
-        uint32_t index;
-        uint8_t ok;
-
-        if(!w25_wait_ready(20u) || !w25_write_enable())
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        storage_select(STORAGE_CS_NOR);
-        ok = (uint8_t)(spi_send(W25_CMD_PAGE_PROGRAM) &&
-                       storage_send_address(address));
-        for(index = 0u; index < amount && ok; ++index)
-        {
-            ok = spi_send(data[index]);
-        }
-        if(ok)
-        {
-            ok = spi_finish();
-        }
-        storage_deselect(STORAGE_CS_NOR);
-        if(!ok || !w25_wait_ready(20u))
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-
-        address += amount;
-        data += amount;
-        length -= amount;
-    }
-    return USB_VENDOR_STATUS_OK;
-}
-
-/* 向 APS6404L 顺序写入一段数据。 */
-static usb_vendor_status_t storage_write_psram(uint32_t address,
-                                               const uint8_t *data,
-                                               uint32_t length)
-{
-    uint32_t index;
-    uint8_t ok;
-
-    if(length == 0u)
-    {
-        return USB_VENDOR_STATUS_OK;
-    }
-    storage_select(STORAGE_CS_PSRAM);
-    ok = (uint8_t)(spi_send(APS_CMD_WRITE_DATA) &&
-                   storage_send_address(address));
-    for(index = 0u; index < length && ok; ++index)
-    {
-        ok = spi_send(data[index]);
-    }
-    if(ok)
-    {
-        ok = spi_finish();
-    }
-    storage_deselect(STORAGE_CS_PSRAM);
-    return ok ? USB_VENDOR_STATUS_OK : USB_VENDOR_STATUS_IO_ERROR;
-}
-
-/* 校验范围后分派 NOR 或 PSRAM 写操作。 */
-static usb_vendor_status_t storage_write(void *context,
-                                         usb_vendor_target_t target,
-                                         uint32_t address,
-                                         const uint8_t *data,
-                                         uint32_t length)
-{
-    spi_storage_context_t *storage = (spi_storage_context_t *)context;
-
-    if(storage == NULL || (data == NULL && length != 0u))
-    {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-    }
-    if(!storage_range_valid(address, length, STORAGE_CAPACITY))
-    {
-        return USB_VENDOR_STATUS_OUT_OF_RANGE;
-    }
-    if(target == USB_VENDOR_TARGET_NOR)
-    {
-        if((storage->info.flags & USB_VENDOR_INFO_FLAG_NOR_PRESENT) == 0u)
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        return storage_write_nor(address, data, length);
-    }
-    if(target == USB_VENDOR_TARGET_PSRAM)
-    {
-        if((storage->info.flags & USB_VENDOR_INFO_FLAG_PSRAM_PRESENT) == 0u)
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        return storage_write_psram(address, data, length);
-    }
-    return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-}
-
-/* 按 4 KiB 扇区擦除 W25Q64 指定范围。 */
-static usb_vendor_status_t storage_erase(void *context,
-                                         uint32_t address,
-                                         uint32_t length)
-{
-    spi_storage_context_t *storage = (spi_storage_context_t *)context;
-
-    if(storage == NULL)
-    {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-    }
-    if((storage->info.flags & USB_VENDOR_INFO_FLAG_NOR_PRESENT) == 0u)
-    {
-        return USB_VENDOR_STATUS_IO_ERROR;
-    }
-    if(length == 0u || (address & (STORAGE_ERASE_SIZE - 1u)) != 0u ||
-       (length & (STORAGE_ERASE_SIZE - 1u)) != 0u)
-    {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-    }
-    if(!storage_range_valid(address, length, STORAGE_CAPACITY))
-    {
-        return USB_VENDOR_STATUS_OUT_OF_RANGE;
-    }
-
-    while(length != 0u)
-    {
-        uint8_t ok;
-
-        if(!w25_wait_ready(1000u) || !w25_write_enable())
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        storage_select(STORAGE_CS_NOR);
-        ok = (uint8_t)(spi_send(W25_CMD_SECTOR_ERASE) &&
-                       storage_send_address(address));
-        if(ok)
-        {
-            ok = spi_finish();
-        }
-        storage_deselect(STORAGE_CS_NOR);
-        if(!ok || !w25_wait_ready(1000u))
-        {
-            return USB_VENDOR_STATUS_IO_ERROR;
-        }
-        address += STORAGE_ERASE_SIZE;
-        length -= STORAGE_ERASE_SIZE;
-    }
-    return USB_VENDOR_STATUS_OK;
-}
-
-/* 返回初始化阶段缓存的芯片容量、特性和 ID。 */
-static usb_vendor_status_t storage_get_info(void *context,
-                                            usb_vendor_info_t *info)
-{
-    spi_storage_context_t *storage = (spi_storage_context_t *)context;
-
-    if(storage == NULL || info == NULL)
-    {
-        return USB_VENDOR_STATUS_INVALID_ARGUMENT;
-    }
-    memcpy(info, &storage->info, sizeof(*info));
-    return USB_VENDOR_STATUS_OK;
-}
-
-/* 同步 4 KiB 操作没有中途取消点，此入口保留协议兼容。 */
-static void storage_cancel(void *context)
-{
-    /* 操作限制在单个 4 KiB 请求内并同步完成。 */
-    (void)context;
-}
-
-static const usb_vendor_backend_t g_backend = {
-    storage_get_info,
-    storage_read,
-    storage_write,
-    storage_erase,
-    storage_cancel
-};
 
 /* 初始化 SPI1、片选 GPIO，并探测两颗存储芯片。 */
-usb_vendor_status_t SpiStorage_Init(void)
+spi_storage_status_t SpiStorage_Init(void)
 {
     GPIO_InitTypeDef gpio;
     SPI_InitTypeDef spi;
@@ -553,46 +277,96 @@ usb_vendor_status_t SpiStorage_Init(void)
     nor_ok = w25_read_id(nor_id);
     psram_ok = (uint8_t)(aps_reset() && aps_read_id(psram_id));
 
-    g_storage.info.flash_size = STORAGE_CAPACITY;
-    g_storage.info.psram_size = STORAGE_CAPACITY;
-    g_storage.info.erase_size = STORAGE_ERASE_SIZE;
-    g_storage.info.max_transfer = USB_VENDOR_MAX_TRANSFER;
-    g_storage.info.page_size = STORAGE_PAGE_SIZE;
-    g_storage.info.flags = USB_VENDOR_INFO_FLAG_CRC32;
-    g_storage.info.fw_major = 1u;
-    g_storage.info.fw_minor = 0u;
+    g_storage.info.nor_size = SPI_STORAGE_NOR_CAPACITY;
+    g_storage.info.psram_size = SPI_STORAGE_PSRAM_CAPACITY;
     memcpy(g_storage.info.nor_id, nor_id, sizeof(nor_id));
     memcpy(g_storage.info.psram_id, psram_id, sizeof(psram_id));
+    g_storage.info.nor_present =
+        (uint8_t)(nor_ok && !storage_id_is_floating(nor_id, sizeof(nor_id)));
+    g_storage.info.psram_present =
+        (uint8_t)(psram_ok && !storage_id_is_floating(psram_id, 2u));
 
-    if(nor_ok && !storage_id_is_floating(nor_id, sizeof(nor_id)))
-    {
-        g_storage.info.flags |= USB_VENDOR_INFO_FLAG_NOR_PRESENT |
-                                USB_VENDOR_INFO_FLAG_NOR_ERASE;
-    }
-    if(psram_ok && !storage_id_is_floating(psram_id, 2u))
-    {
-        g_storage.info.flags |= USB_VENDOR_INFO_FLAG_PSRAM_PRESENT;
-    }
-    return USB_VENDOR_STATUS_OK;
+    /* 芯片缺席属于探测结果而非控制器初始化失败。 */
+    return SPI_STORAGE_STATUS_OK;
 }
 
-/* 返回供 USB Vendor 协议调用的后端函数表。 */
-const usb_vendor_backend_t *SpiStorage_Backend(void)
-{
-    return &g_backend;
-}
-
-/* 返回静态存储上下文地址。 */
-void *SpiStorage_Context(void)
-{
-    return &g_storage;
-}
-
-/* 复制当前存储探测结果供串口输出。 */
-void SpiStorage_GetInfo(usb_vendor_info_t *info)
+/* 复制当前存储探测结果供串口或后续 boot 逻辑使用。 */
+void SpiStorage_GetInfo(spi_storage_info_t *info)
 {
     if(info != NULL)
     {
         memcpy(info, &g_storage.info, sizeof(*info));
     }
+}
+
+/* 从固定产品镜像所在的 W25Q64 顺序读取数据。 */
+spi_storage_status_t SpiStorage_NorRead(uint32_t address,
+                                       uint8_t *data,
+                                       uint32_t length)
+{
+    if(!g_storage.info.nor_present)
+    {
+        return SPI_STORAGE_STATUS_IO_ERROR;
+    }
+    return storage_read(STORAGE_CS_NOR,
+                        SPI_STORAGE_NOR_CAPACITY,
+                        address,
+                        data,
+                        length);
+}
+
+/* 从 APS6404L 顺序读取数据，供 MIPS 内存后端使用。 */
+spi_storage_status_t SpiStorage_PsramRead(uint32_t address,
+                                         uint8_t *data,
+                                         uint32_t length)
+{
+    if(!g_storage.info.psram_present)
+    {
+        return SPI_STORAGE_STATUS_IO_ERROR;
+    }
+    return storage_read(STORAGE_CS_PSRAM,
+                        SPI_STORAGE_PSRAM_CAPACITY,
+                        address,
+                        data,
+                        length);
+}
+
+/* 向 APS6404L 顺序写入数据，供 MIPS 内存后端使用。 */
+spi_storage_status_t SpiStorage_PsramWrite(uint32_t address,
+                                          const uint8_t *data,
+                                          uint32_t length)
+{
+    uint32_t index;
+    uint8_t ok;
+
+    if(data == NULL && length != 0u)
+    {
+        return SPI_STORAGE_STATUS_INVALID_ARGUMENT;
+    }
+    if(!g_storage.info.psram_present)
+    {
+        return SPI_STORAGE_STATUS_IO_ERROR;
+    }
+    if(!storage_range_valid(address, length, SPI_STORAGE_PSRAM_CAPACITY))
+    {
+        return SPI_STORAGE_STATUS_OUT_OF_RANGE;
+    }
+    if(length == 0u)
+    {
+        return SPI_STORAGE_STATUS_OK;
+    }
+
+    storage_select(STORAGE_CS_PSRAM);
+    ok = (uint8_t)(spi_send(APS_CMD_WRITE_DATA) &&
+                   storage_send_address(address));
+    for(index = 0u; index < length && ok; ++index)
+    {
+        ok = spi_send(data[index]);
+    }
+    if(ok)
+    {
+        ok = spi_finish();
+    }
+    storage_deselect(STORAGE_CS_PSRAM);
+    return ok ? SPI_STORAGE_STATUS_OK : SPI_STORAGE_STATUS_IO_ERROR;
 }

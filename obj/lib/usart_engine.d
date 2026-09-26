@@ -1,7 +1,6 @@
-lib\usart_engine.o: ../lib/usart_engine.c ../User/usb_usbd/usb_conf.h \
- ../lib/usart_engine.h ../Peripheral/inc/ch32v20x_usart.h \
- ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
- ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
+lib\usart_engine.o: ../lib/usart_engine.c ../lib/usart_engine.h \
+ ../Peripheral/inc/ch32v20x_usart.h ../Peripheral/inc/ch32v20x.h \
+ ../Core/core_riscv.h ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
  ../Peripheral/inc/ch32v20x_adc.h ../Peripheral/inc/ch32v20x_bkp.h \
  ../Peripheral/inc/ch32v20x_can.h ../Peripheral/inc/ch32v20x_crc.h \
  ../Peripheral/inc/ch32v20x_dbgmcu.h ../Peripheral/inc/ch32v20x_dma.h \
@@ -13,8 +12,6 @@ lib\usart_engine.o: ../lib/usart_engine.c ../User/usb_usbd/usb_conf.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h ../Debug/debug.h \
  ../Peripheral/inc/ch32v20x.h ../Peripheral/inc/ch32v20x_misc.h \
  ../lib/ring_buffer.h ../lib/ch32_irq.h
-
-../User/usb_usbd/usb_conf.h:
 
 ../lib/usart_engine.h:
 

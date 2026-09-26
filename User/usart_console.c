@@ -31,15 +31,15 @@ static const cmdline_table_t g_command_table[] = {
 };
 
 /* 以便于 COM19 脚本识别的固定格式打印两颗芯片 ID。 */
-static void console_print_storage_info(const usb_vendor_info_t *info)
+static void console_print_storage_info(const spi_storage_info_t *info)
 {
     printf("SPI1 W25Q64 CS0: present=%s id=%02X %02X %02X expected=%s\r\n",
-           (info->flags & USB_VENDOR_INFO_FLAG_NOR_PRESENT) ? "yes" : "no",
+           info->nor_present ? "yes" : "no",
            info->nor_id[0], info->nor_id[1], info->nor_id[2],
            (info->nor_id[0] == 0xEFu && info->nor_id[1] == 0x40u &&
             info->nor_id[2] == 0x17u) ? "yes" : "no");
     printf("SPI1 APS6404L CS1: present=%s mf=%02X kgd=%02X eid=%02X%02X expected=%s\r\n",
-           (info->flags & USB_VENDOR_INFO_FLAG_PSRAM_PRESENT) ? "yes" : "no",
+           info->psram_present ? "yes" : "no",
            info->psram_id[0], info->psram_id[1],
            info->psram_id[2], info->psram_id[3],
            (info->psram_id[0] == 0x0Du &&
@@ -63,8 +63,8 @@ static cmdline_status_t command_help(cmdline_argument_t arguments)
 /* 立即重新初始化 SPI 存储并打印探测结果。 */
 static cmdline_status_t command_probe(cmdline_argument_t arguments)
 {
-    usb_vendor_info_t info;
-    usb_vendor_status_t status;
+    spi_storage_info_t info;
+    spi_storage_status_t status;
 
     if(arguments.argc != 1u)
     {
@@ -72,7 +72,7 @@ static cmdline_status_t command_probe(cmdline_argument_t arguments)
     }
 
     status = SpiStorage_Init();
-    if(status != USB_VENDOR_STATUS_OK)
+    if(status != SPI_STORAGE_STATUS_OK)
     {
         printf("probe: SPI storage init failed: status=%u\r\n",
                (unsigned int)status);

@@ -46,8 +46,10 @@ pending/complete 标志；SPI 擦写、CRC 和协议状态机仍在主循环运�
 
 ```powershell
 cd C:\Users\云晴\mounriver-studio-projects\CH32V203F6P
-.\tools\Build-Firmware.ps1
+.\flash\firmware\Build-Flasher.ps1
 ```
+
+归档构建写入 `flash/build/`，不会覆盖根目录 Product profile 的 `obj/`。
 
 本轮最终链接结果：
 
@@ -55,19 +57,22 @@ cd C:\Users\云晴\mounriver-studio-projects\CH32V203F6P
 - RAM：`data 384 + bss 4956 + stack 2048 = 7388 B / 10240 B`；
 - `_ebss=0x200014DC`，栈从 `0x20002000` 开始，中间保留 `2852 B`。
 
-固定烧录文件为：
+经过真机验证并冻结的发布烧录文件为：
 
-`C:\Users\云晴\mounriver-studio-projects\CH32V203F6P\obj\CH32V203F6P.hex`
+`C:\Users\云晴\mounriver-studio-projects\CH32V203F6P\flash\release\CH32V203F6P-usb-flasher-v1.0.0.hex`
+
+需要验证归档可重复构建时，可改用
+`flash/build/CH32V203F6P.hex`；其 SHA-256 必须与上述发布文件相同。
 
 ## 验证顺序
 
-1. 在 MounRiver Studio 中手动下载上述 HEX。
+1. 在 MounRiver Studio 中手动下载上述冻结发布 HEX。
 2. COM19 应打印系统时钟、ChipID、两颗 SPI 芯片 ID、USB Vendor ready、
    `Command table: 2 registered (help, probe)`。
 3. Windows 应出现 `VID_1209&PID_2036`；首次使用时仅为这个新设备安装
    WinUSB/libusbK，不改动 WCH-Link 的 `1A86:8010`。
-4. 运行 `python -m ch32_image_tool.cli list` 和 `info`，再进行小范围双芯片
-   完整性测试。
+4. 进入 `flash/host/`，运行 `python -m ch32_image_tool.cli list` 和 `info`，
+   再进行小范围双芯片完整性测试。
 
 ## 真机验证（2026-09-27）
 
@@ -83,5 +88,9 @@ cd C:\Users\云晴\mounriver-studio-projects\CH32V203F6P
   回读镜像 SHA-256 均为
   `5D5DA3F3445AF5FEEBF968FC9DC7E7E5BF9374326AE3FCB252B7F48805D4400C`。
 
+固定镜像的二进制布局、文件 offset/slot、发布指纹、CRC 覆盖范围以及
+下一轮下位机读取要求见 [W25Q64 固定镜像格式](flash-image-format.md)。
+
 上位机离线测试已通过：`16 passed`。生成的 8 MiB 镜像、回读文件与过程日志
-位于已忽略的 `host/out/`，不会进入 Git。
+工作副本位于已忽略的 `flash/host/out/`；经过验证的冻结镜像另存为
+`flash/release/mipsel-emu-8m-v1.img`。

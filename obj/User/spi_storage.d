@@ -1,6 +1,5 @@
-User\spi_storage.o: ../User/spi_storage.c ../User/usb_usbd/usb_conf.h \
- ../User/spi_storage.h ../User/usb_vendor.h ../Debug/debug.h \
- ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
+User\spi_storage.o: ../User/spi_storage.c ../User/spi_storage.h \
+ ../Debug/debug.h ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
  ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
  ../Peripheral/inc/ch32v20x_adc.h ../Peripheral/inc/ch32v20x.h \
  ../Peripheral/inc/ch32v20x_bkp.h ../Peripheral/inc/ch32v20x_can.h \
@@ -14,11 +13,7 @@ User\spi_storage.o: ../User/spi_storage.c ../User/usb_usbd/usb_conf.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h \
  ../Peripheral/inc/ch32v20x_misc.h
 
-../User/usb_usbd/usb_conf.h:
-
 ../User/spi_storage.h:
-
-../User/usb_vendor.h:
 
 ../Debug/debug.h:
 

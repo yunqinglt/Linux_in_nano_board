@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "target": "WCH CH32V203F6P6",
+  "source_commit": "84f85172b6477ae47ce1173c70aece1ce620bb79",
+  "firmware": {
+    "file": "CH32V203F6P-usb-flasher-v1.0.0.hex",
+    "format": "Intel HEX",
+    "file_size": 65898,
+    "payload_size": 23420,
+    "payload_address_first": "0x00000000",
+    "payload_address_end_exclusive": "0x00005B7C",
+    "sha256": "DB78754578653C914459BFAA952AE4AB858E69AD52C57E1B668B55C681C50542",
+    "file_crc32": "2CC58B0E",
+    "usb_vid": "1209",
+    "usb_pid": "2036",
+    "protocol_version": 1
+  },
+  "external_flash_image": {
+    "file": "mipsel-emu-8m-v1.img",
+    "format": "raw binary",
+    "size": 8388608,
+    "sha256": "5D5DA3F3445AF5FEEBF968FC9DC7E7E5BF9374326AE3FCB252B7F48805D4400C",
+    "file_crc32": "413CD9EC",
+    "manifest_crc32": "6C192C43",
+    "logical_image_crc32": "4A01555E"
+  },
+  "hardware_verification": {
+    "date": "2026-09-27",
+    "chip_id": "20370500",
+    "nor_jedec_id": "EF4017",
+    "psram_id": "0D5D52D6",
+    "full_flash_program_and_verify": true,
+    "independent_readback_sha256_match": true
+  }
+}

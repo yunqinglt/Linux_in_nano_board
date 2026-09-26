@@ -33,14 +33,16 @@ void NMI_Handler(void)
 /*********************************************************************
  * @fn      HardFault_Handler
  *
- * @brief   This function handles Hard Fault exception.
+ * @brief   捕获 HardFault 并打印机器异常寄存器，便于串口定位启动故障。
  *
  * @return  none
  */
 void HardFault_Handler(void)
 {
-  printf("HardFault: mcause=%08x mepc=%08x mtval=%08x\r\n",
-         __get_MCAUSE(), __get_MEPC(), __get_MTVAL());
+  printf("HardFault: mcause=%08lx mepc=%08lx mtval=%08lx\r\n",
+         (unsigned long)__get_MCAUSE(),
+         (unsigned long)__get_MEPC(),
+         (unsigned long)__get_MTVAL());
   while (1)
   {
   }
@@ -49,7 +51,7 @@ void HardFault_Handler(void)
 /*********************************************************************
  * @fn      USART2_IRQHandler
  *
- * @brief   Handles the command console RX/TX interrupt.
+ * @brief   处理 USART 命令行的接收与发送中断。
  *
  * @return  none
  */
