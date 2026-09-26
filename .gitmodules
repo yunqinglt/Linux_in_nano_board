@@ -4,3 +4,6 @@
 [submodule "third_party/stm32_in_c"]
 	path = third_party/stm32_in_c
 	url = git@github.com:yunqinglt/stm32_in_c.git
+[submodule "third_party/openwch-ch32v20x"]
+	path = third_party/openwch-ch32v20x
+	url = git@github.com:openwch/ch32v20x.git

@@ -1,5 +1,5 @@
-Debug\debug.o: ../Debug/debug.c ../Debug/debug.h \
- ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
+Debug\debug.o: ../Debug/debug.c ../User/usb_usbd/usb_conf.h \
+ ../Debug/debug.h ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
  ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
  ../Peripheral/inc/ch32v20x_adc.h ../Peripheral/inc/ch32v20x.h \
  ../Peripheral/inc/ch32v20x_bkp.h ../Peripheral/inc/ch32v20x_can.h \
@@ -12,6 +12,8 @@ Debug\debug.o: ../Debug/debug.c ../Debug/debug.h \
  ../Peripheral/inc/ch32v20x_tim.h ../Peripheral/inc/ch32v20x_usart.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h ../Debug/debug.h \
  ../Peripheral/inc/ch32v20x_misc.h
+
+../User/usb_usbd/usb_conf.h:
 
 ../Debug/debug.h:
 

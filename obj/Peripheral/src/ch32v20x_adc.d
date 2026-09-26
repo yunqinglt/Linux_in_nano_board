@@ -1,79 +1,68 @@
-Peripheral/src/ch32v20x_adc.o: ../Peripheral/src/ch32v20x_adc.c \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_adc.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Core/core_riscv.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/system_ch32v20x.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/ch32v20x_conf.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_bkp.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_can.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_crc.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_dbgmcu.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_dma.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_exti.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_flash.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_gpio.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_i2c.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_iwdg.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_pwr.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_rcc.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_rtc.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_spi.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_tim.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_usart.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_wwdg.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/ch32v20x_it.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Debug/debug.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x.h \
- c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_misc.h
+Peripheral\src\ch32v20x_adc.o: ../Peripheral/src/ch32v20x_adc.c \
+ ../User/usb_usbd/usb_conf.h ../Peripheral/inc/ch32v20x_adc.h \
+ ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
+ ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
+ ../Peripheral/inc/ch32v20x_bkp.h ../Peripheral/inc/ch32v20x_can.h \
+ ../Peripheral/inc/ch32v20x_crc.h ../Peripheral/inc/ch32v20x_dbgmcu.h \
+ ../Peripheral/inc/ch32v20x_dma.h ../Peripheral/inc/ch32v20x_exti.h \
+ ../Peripheral/inc/ch32v20x_flash.h ../Peripheral/inc/ch32v20x_gpio.h \
+ ../Peripheral/inc/ch32v20x_i2c.h ../Peripheral/inc/ch32v20x_iwdg.h \
+ ../Peripheral/inc/ch32v20x_pwr.h ../Peripheral/inc/ch32v20x_rcc.h \
+ ../Peripheral/inc/ch32v20x_rtc.h ../Peripheral/inc/ch32v20x_spi.h \
+ ../Peripheral/inc/ch32v20x_tim.h ../Peripheral/inc/ch32v20x_usart.h \
+ ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h ../Debug/debug.h \
+ ../Peripheral/inc/ch32v20x.h ../Peripheral/inc/ch32v20x_misc.h
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_adc.h:
+../User/usb_usbd/usb_conf.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x.h:
+../Peripheral/inc/ch32v20x_adc.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Core/core_riscv.h:
+../Peripheral/inc/ch32v20x.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/system_ch32v20x.h:
+../Core/core_riscv.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/ch32v20x_conf.h:
+../User/system_ch32v20x.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_bkp.h:
+../User/ch32v20x_conf.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_can.h:
+../Peripheral/inc/ch32v20x_bkp.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_crc.h:
+../Peripheral/inc/ch32v20x_can.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_dbgmcu.h:
+../Peripheral/inc/ch32v20x_crc.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_dma.h:
+../Peripheral/inc/ch32v20x_dbgmcu.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_exti.h:
+../Peripheral/inc/ch32v20x_dma.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_flash.h:
+../Peripheral/inc/ch32v20x_exti.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_gpio.h:
+../Peripheral/inc/ch32v20x_flash.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_i2c.h:
+../Peripheral/inc/ch32v20x_gpio.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_iwdg.h:
+../Peripheral/inc/ch32v20x_i2c.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_pwr.h:
+../Peripheral/inc/ch32v20x_iwdg.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_rcc.h:
+../Peripheral/inc/ch32v20x_pwr.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_rtc.h:
+../Peripheral/inc/ch32v20x_rcc.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_spi.h:
+../Peripheral/inc/ch32v20x_rtc.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_tim.h:
+../Peripheral/inc/ch32v20x_spi.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_usart.h:
+../Peripheral/inc/ch32v20x_tim.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_wwdg.h:
+../Peripheral/inc/ch32v20x_usart.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/User/ch32v20x_it.h:
+../Peripheral/inc/ch32v20x_wwdg.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Debug/debug.h:
+../User/ch32v20x_it.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x.h:
+../Debug/debug.h:
 
-c:/Users/‘∆«Á/mounriver-studio-projects/CH32V203F6P/Peripheral/inc/ch32v20x_misc.h:
+../Peripheral/inc/ch32v20x.h:
+
+../Peripheral/inc/ch32v20x_misc.h:

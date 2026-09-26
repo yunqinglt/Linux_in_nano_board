@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ch32v203-image-tool"
+version = "0.1.0"
+description = "CH32V203 W25Q64/APS6404L USB maintenance utility"
+requires-python = ">=3.10"
+dependencies = [
+  "PyQt6>=6.7,<7",
+  "pyusb>=1.2.1,<2",
+  "libusb1>=3.1,<4",
+]
+
+[project.scripts]
+ch32-image-tool = "ch32_image_tool.gui:main"
+ch32-image-cli = "ch32_image_tool.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ch32_image_tool*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

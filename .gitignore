@@ -1,0 +1,4 @@
+# 本地下载的参考源码；正式依赖请通过已登记的 Git 子模块引入。
+/third_party/ch32v20x-main/
+/third_party/openocd_wchlink-rv-master/
+/third_party/riscv-openocd-wch-wch-linke-sdi/

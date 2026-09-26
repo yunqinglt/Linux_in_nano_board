@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
-    [string]$ProjectRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$ProjectRoot = '',
     [string]$MounRiverRoot = 'E:\MounRiver\MounRiver_Studio2'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    $ProjectRoot = Split-Path -Parent $PSScriptRoot
+}
 
 $toolBin = Join-Path $MounRiverRoot `
     'resources\app\resources\win32\components\WCH\Toolchain\RISC-V Embedded GCC\bin'
@@ -42,13 +46,30 @@ $cFlags = $commonFlags + @(
     '-I../Debug',
     '-I../Core',
     '-I../User',
+    '-I../User/usb_usbd',
     '-I../Peripheral/inc',
     '-I../lib',
+    '-I../third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/inc',
+    '-I../third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG',
+    '-include',
+    '../User/usb_usbd/usb_conf.h',
     '-std=gnu99'
 )
 $sourceDirectories = @('Core', 'Debug', 'Peripheral/src', 'User', 'lib')
+$usbdSourceRoot = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB'
+$usbdSources = @(
+    "$usbdSourceRoot/USB-Driver/src/usb_core.c",
+    "$usbdSourceRoot/USB-Driver/src/usb_init.c",
+    "$usbdSourceRoot/USB-Driver/src/usb_int.c",
+    "$usbdSourceRoot/USB-Driver/src/usb_mem.c",
+    "$usbdSourceRoot/USB-Driver/src/usb_regs.c",
+    "$usbdSourceRoot/USB-Driver/src/usb_sil.c",
+    "$usbdSourceRoot/CONFIG/usb_istr.c",
+    "$usbdSourceRoot/CONFIG/usb_pwr.c"
+)
 $objects = [System.Collections.Generic.List[string]]::new()
 
+# 运行一个工具链步骤，并把非零退出码提升为构建错误。
 function Invoke-Checked {
     param(
         [Parameter(Mandatory)] [string]$Executable,
@@ -92,6 +113,37 @@ try {
                 ))
             $objects.Add($relativeObject)
         }
+    }
+
+    # WCH legacy USBD 使用独立 PMA；只编译协议核心和中断/电源层，设备类由 User 实现。
+    $usbdObjectDirectory = Join-Path $outputRoot 'USBD'
+    New-Item -ItemType Directory -Path $usbdObjectDirectory -Force | Out-Null
+    foreach ($relativeSourcePath in $usbdSources) {
+        $source = Join-Path $ProjectRoot $relativeSourcePath
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Required WCH USBD source not found: $source"
+        }
+
+        $stem = [System.IO.Path]::GetFileNameWithoutExtension($source)
+        $object = Join-Path $usbdObjectDirectory "$stem.o"
+        $dependency = Join-Path $usbdObjectDirectory "$stem.d"
+        $relativeObject = $object.Substring($outputRoot.Length + 1)
+        $relativeDependency = $dependency.Substring($outputRoot.Length + 1)
+        $compileSource = "../$($relativeSourcePath.Replace('\\', '/'))"
+
+        Invoke-Checked -Executable $gcc -Description "Compile $relativeSourcePath" `
+            -Arguments ($cFlags + @(
+                '-Wno-unused-variable',
+                '-MMD',
+                '-MP',
+                "-MF$relativeDependency",
+                "-MT$relativeObject",
+                '-c',
+                '-o',
+                $relativeObject,
+                $compileSource
+            ))
+        $objects.Add($relativeObject)
     }
 
     $startupDirectory = Join-Path $outputRoot 'Startup'

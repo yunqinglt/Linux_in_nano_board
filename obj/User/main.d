@@ -1,4 +1,4 @@
-User\main.o: ../User/main.c ../lib/cmdline.h ../Debug/debug.h \
+User\main.o: ../User/main.c ../User/usb_usbd/usb_conf.h ../Debug/debug.h \
  ../Peripheral/inc/ch32v20x.h ../Core/core_riscv.h \
  ../User/system_ch32v20x.h ../User/ch32v20x_conf.h \
  ../Peripheral/inc/ch32v20x_adc.h ../Peripheral/inc/ch32v20x.h \
@@ -11,10 +11,10 @@ User\main.o: ../User/main.c ../lib/cmdline.h ../Debug/debug.h \
  ../Peripheral/inc/ch32v20x_rtc.h ../Peripheral/inc/ch32v20x_spi.h \
  ../Peripheral/inc/ch32v20x_tim.h ../Peripheral/inc/ch32v20x_usart.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h \
- ../Peripheral/inc/ch32v20x_misc.h ../lib/usart_proxy.h \
- ../lib/usart_engine.h ../lib/ring_buffer.h
+ ../Peripheral/inc/ch32v20x_misc.h ../User/spi_storage.h \
+ ../User/usb_vendor.h ../User/usart_console.h
 
-../lib/cmdline.h:
+../User/usb_usbd/usb_conf.h:
 
 ../Debug/debug.h:
 
@@ -68,8 +68,8 @@ User\main.o: ../User/main.c ../lib/cmdline.h ../Debug/debug.h \
 
 ../Peripheral/inc/ch32v20x_misc.h:
 
-../lib/usart_proxy.h:
+../User/spi_storage.h:
 
-../lib/usart_engine.h:
+../User/usb_vendor.h:
 
-../lib/ring_buffer.h:
+../User/usart_console.h:
