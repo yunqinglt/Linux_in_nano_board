@@ -19,8 +19,11 @@
  */
 
 #include <stddef.h>
+#include <stdint.h>
 
+#include "cmdline.h"
 #include "debug.h"
+#include "usart_proxy.h"
 
 #define SPI_PROBE_CS_W25Q64       GPIO_Pin_0
 #define SPI_PROBE_CS_APS6404L     GPIO_Pin_1
@@ -30,6 +33,11 @@
 #define APS6404L_CMD_RESET_ENABLE 0x66u
 #define APS6404L_CMD_RESET        0x99u
 #define APS6404L_CMD_READ_ID      0x9Fu
+
+#define ARRAY_COUNT(array)        (sizeof(array) / sizeof((array)[0]))
+#define CONSOLE_RX_BUFFER_SIZE    128u
+#define CONSOLE_TX_BUFFER_SIZE    64u
+#define CONSOLE_LINE_BUFFER_SIZE  96u
 
 typedef struct
 {
@@ -48,6 +56,24 @@ typedef struct
     uint8_t kgd;
     uint8_t eid[6];
 } spi_probe_aps6404l_id_t;
+
+static cmdline_status_t command_help(cmdline_argument_t arguments);
+static cmdline_status_t command_probe(cmdline_argument_t arguments);
+
+static cmdline_t g_cmdline;
+static cmdline_mount_t g_cmdline_mounts[1];
+static UsartProxy_t g_usart_proxy;
+static uint8_t g_console_rx_buffer[CONSOLE_RX_BUFFER_SIZE];
+static uint8_t g_console_tx_buffer[CONSOLE_TX_BUFFER_SIZE];
+static char g_console_line[CONSOLE_LINE_BUFFER_SIZE];
+static size_t g_console_line_length;
+static uint8_t g_console_line_overflow;
+static uint8_t g_console_last_was_cr;
+
+static const cmdline_table_t g_command_table[] = {
+    {"help", command_help},
+    {"probe", command_probe},
+};
 
 static void spi_probe_select(uint16_t chip_select)
 {
@@ -280,6 +306,224 @@ static void spi_probe_read_ids(spi_probe_w25q64_id_t *w25q64,
     spi_probe_aps6404l(aps6404l);
 }
 
+static void spi_probe_print_ids(const spi_probe_w25q64_id_t *w25q64,
+                                const spi_probe_aps6404l_id_t *aps6404l)
+{
+    printf("SPI1 W25Q64 CS0: transfer=%s present=%s id=%02X %02X %02X expected=%s\r\n",
+           w25q64->transfer_ok ? "ok" : "timeout",
+           w25q64->present ? "yes" : "no",
+           w25q64->id[0], w25q64->id[1], w25q64->id[2],
+           w25q64->expected ? "yes" : "no");
+    printf("SPI1 APS6404L CS1: transfer=%s present=%s mf=%02X kgd=%02X eid=%02X%02X%02X%02X%02X%02X expected=%s\r\n",
+           aps6404l->transfer_ok ? "ok" : "timeout",
+           aps6404l->present ? "yes" : "no",
+           aps6404l->mf_id, aps6404l->kgd,
+           aps6404l->eid[0], aps6404l->eid[1], aps6404l->eid[2],
+           aps6404l->eid[3], aps6404l->eid[4], aps6404l->eid[5],
+           aps6404l->expected ? "yes" : "no");
+}
+
+static void spi_probe_run_and_print(void)
+{
+    spi_probe_w25q64_id_t w25q64;
+    spi_probe_aps6404l_id_t aps6404l;
+
+    printf("probe: APS6404L is reset before its ID is read\r\n");
+    spi_probe_read_ids(&w25q64, &aps6404l);
+    spi_probe_print_ids(&w25q64, &aps6404l);
+}
+
+static cmdline_status_t command_help(cmdline_argument_t arguments)
+{
+    if(arguments.argc != 1u)
+    {
+        return CMDLINE_STATUS_ARGUMENT_COUNT;
+    }
+
+    printf("Commands:\r\n");
+    printf("  help   Show this command table\r\n");
+    printf("  probe  Read W25Q64 and APS6404L IDs (resets APS6404L)\r\n");
+    return CMDLINE_STATUS_OK;
+}
+
+static cmdline_status_t command_probe(cmdline_argument_t arguments)
+{
+    if(arguments.argc != 1u)
+    {
+        return CMDLINE_STATUS_ARGUMENT_COUNT;
+    }
+
+    spi_probe_run_and_print();
+    return CMDLINE_STATUS_OK;
+}
+
+static const char *cmdline_status_text(cmdline_status_t status)
+{
+    switch(status)
+    {
+        case CMDLINE_STATUS_INVALID_ARGUMENT:
+            return "invalid argument";
+        case CMDLINE_STATUS_TOO_MANY_ARGUMENTS:
+            return "too many arguments";
+        case CMDLINE_STATUS_MOUNT_FULL:
+            return "mount table full";
+        case CMDLINE_STATUS_DUPLICATE_COMMAND:
+            return "duplicate command";
+        case CMDLINE_STATUS_BAD_FORMAT:
+            return "bad format";
+        case CMDLINE_STATUS_ARGUMENT_COUNT:
+            return "unexpected arguments";
+        case CMDLINE_STATUS_ARGUMENT_VALUE:
+            return "bad argument value";
+        case CMDLINE_STATUS_ARGUMENT_RANGE:
+            return "argument out of range";
+        case CMDLINE_STATUS_IO_ERROR:
+            return "I/O error";
+        default:
+            return "internal error";
+    }
+}
+
+static void console_prompt(void)
+{
+    printf("ch32> ");
+}
+
+static uint8_t console_init(void)
+{
+    cmdline_status_t cmdline_status;
+    UsartProxyStatus_t proxy_status;
+
+    proxy_status = UsartProxy_Init(&g_usart_proxy,
+                                   UsartEngine_GetInstance(),
+                                   PROXY_NONBLOCKING,
+                                   g_console_rx_buffer,
+                                   sizeof(g_console_rx_buffer),
+                                   g_console_tx_buffer,
+                                   sizeof(g_console_tx_buffer));
+    if(proxy_status != USART_PROXY_STATUS_OK &&
+       proxy_status != USART_PROXY_STATUS_RECOVERED)
+    {
+        printf("Console init failed: USART proxy status=%u\r\n",
+               (unsigned int)proxy_status);
+        return 0u;
+    }
+
+    cmdline_status = Cmdline_Init(&g_cmdline,
+                                  g_cmdline_mounts,
+                                  ARRAY_COUNT(g_cmdline_mounts));
+    if(cmdline_status == CMDLINE_STATUS_OK)
+    {
+        cmdline_status = Cmdline_Mount(&g_cmdline,
+                                       g_command_table,
+                                       ARRAY_COUNT(g_command_table),
+                                       NULL);
+    }
+    if(cmdline_status != CMDLINE_STATUS_OK)
+    {
+        printf("Console init failed: command table status=%u\r\n",
+               (unsigned int)cmdline_status);
+        return 0u;
+    }
+
+    g_console_line_length = 0u;
+    g_console_line_overflow = 0u;
+    g_console_last_was_cr = 0u;
+    printf("Console: USART2 PA2/PA3, 115200 8N1\r\n");
+    printf("Command table: 2 registered (help, probe)\r\n");
+    printf("USART proxy: %s\r\n",
+           proxy_status == USART_PROXY_STATUS_RECOVERED ? "recovered" : "ready");
+    return 1u;
+}
+
+static void console_execute_line(void)
+{
+    cmdline_status_t status;
+    const char *command;
+
+    printf("\r\n");
+    if(g_console_line_overflow)
+    {
+        printf("error: command line exceeds %u characters\r\n",
+               (unsigned int)(sizeof(g_console_line) - 1u));
+    }
+    else
+    {
+        g_console_line[g_console_line_length] = '\0';
+        status = Cmdline_Execute(&g_cmdline, g_console_line);
+        if(status == CMDLINE_STATUS_UNKNOWN_COMMAND)
+        {
+            command = Cmdline_LastCommand(&g_cmdline);
+            printf("error: unknown command%s%s\r\n",
+                   command != NULL ? ": " : "",
+                   command != NULL ? command : "");
+        }
+        else if(status != CMDLINE_STATUS_OK && status != CMDLINE_STATUS_EMPTY)
+        {
+            printf("error: %s\r\n", cmdline_status_text(status));
+        }
+    }
+
+    g_console_line_length = 0u;
+    g_console_line_overflow = 0u;
+    console_prompt();
+}
+
+static void console_process_character(int character)
+{
+    if(character == '\r')
+    {
+        console_execute_line();
+        g_console_last_was_cr = 1u;
+        return;
+    }
+    if(character == '\n')
+    {
+        if(g_console_last_was_cr)
+        {
+            g_console_last_was_cr = 0u;
+            return;
+        }
+        console_execute_line();
+        return;
+    }
+
+    g_console_last_was_cr = 0u;
+    if(character == '\b' || character == 0x7F)
+    {
+        if(!g_console_line_overflow && g_console_line_length != 0u)
+        {
+            --g_console_line_length;
+            printf("\b \b");
+        }
+        return;
+    }
+
+    if(character >= 0x20 && character <= 0x7E)
+    {
+        if(!g_console_line_overflow &&
+           g_console_line_length < (sizeof(g_console_line) - 1u))
+        {
+            g_console_line[g_console_line_length++] = (char)character;
+            printf("%c", character);
+        }
+        else
+        {
+            g_console_line_overflow = 1u;
+        }
+    }
+}
+
+static void console_poll(void)
+{
+    int character;
+
+    while((character = UsartProxy_TryGetchar(&g_usart_proxy)) >= 0)
+    {
+        console_process_character(character);
+    }
+}
+
 /* Global typedef */
 
 /* Global define */
@@ -295,9 +539,6 @@ static void spi_probe_read_ids(spi_probe_w25q64_id_t *w25q64,
  */
 int main(void)
 {
-    spi_probe_w25q64_id_t w25q64;
-    spi_probe_aps6404l_id_t aps6404l;
-
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
     SystemCoreClockUpdate();
     Delay_Init();
@@ -306,22 +547,16 @@ int main(void)
     printf( "ChipID:%08x\r\n", DBGMCU_GetCHIPID() );
 
     spi_probe_init();
-    spi_probe_read_ids(&w25q64, &aps6404l);
-
-    printf("SPI1 W25Q64 CS0: transfer=%s present=%s id=%02X %02X %02X expected=%s\r\n",
-           w25q64.transfer_ok ? "ok" : "timeout",
-           w25q64.present ? "yes" : "no",
-           w25q64.id[0], w25q64.id[1], w25q64.id[2],
-           w25q64.expected ? "yes" : "no");
-    printf("SPI1 APS6404L CS1: transfer=%s present=%s mf=%02X kgd=%02X eid=%02X%02X%02X%02X%02X%02X expected=%s\r\n",
-           aps6404l.transfer_ok ? "ok" : "timeout",
-           aps6404l.present ? "yes" : "no",
-           aps6404l.mf_id, aps6404l.kgd,
-           aps6404l.eid[0], aps6404l.eid[1], aps6404l.eid[2],
-           aps6404l.eid[3], aps6404l.eid[4], aps6404l.eid[5],
-           aps6404l.expected ? "yes" : "no");
+    if(!console_init())
+    {
+        while(1)
+        {
+        }
+    }
+    console_prompt();
 
     while(1)
     {
+        console_poll();
     }
 }

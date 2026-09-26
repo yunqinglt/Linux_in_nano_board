@@ -10,9 +10,11 @@
 * microcontroller manufactured by Nanjing Qinheng Microelectronics.
 *******************************************************************************/
 #include "ch32v20x_it.h"
+#include "usart_engine.h"
 
 void NMI_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 void HardFault_Handler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
+void USART2_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 
 /*********************************************************************
  * @fn      NMI_Handler
@@ -37,10 +39,23 @@ void NMI_Handler(void)
  */
 void HardFault_Handler(void)
 {
-  NVIC_SystemReset();
+  printf("HardFault: mcause=%08x mepc=%08x mtval=%08x\r\n",
+         __get_MCAUSE(), __get_MEPC(), __get_MTVAL());
   while (1)
   {
   }
+}
+
+/*********************************************************************
+ * @fn      USART2_IRQHandler
+ *
+ * @brief   Handles the command console RX/TX interrupt.
+ *
+ * @return  none
+ */
+void USART2_IRQHandler(void)
+{
+  UsartEngine_HL_IRQHandler(UsartEngine_GetInstance());
 }
 
 

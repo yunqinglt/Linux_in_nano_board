@@ -2,7 +2,8 @@
 param(
     [string]$Port = 'COM19',
     [int]$BaudRate = 115200,
-    [int]$TimeoutSeconds = 20
+    [int]$TimeoutSeconds = 20,
+    [string]$Command = 'probe'
 )
 
 Set-StrictMode -Version Latest
@@ -28,6 +29,7 @@ $serial.ReadTimeout = 50
 $lineBuffer = ''
 $w25Seen = $false
 $apsSeen = $false
+$commandSent = [string]::IsNullOrWhiteSpace($Command)
 
 try {
     $serial.Open()
@@ -36,6 +38,16 @@ try {
     while ($timeoutJob.State -eq 'Running') {
         if ($serial.BytesToRead -gt 0) {
             $lineBuffer += $serial.ReadExisting()
+
+            $consoleReady = $lineBuffer.Contains('Command table:') -or
+                $lineBuffer.Contains('ch32> ')
+            if (-not $commandSent -and $consoleReady) {
+                $serial.Write("$Command`r")
+                $commandSent = $true
+                $w25Seen = $false
+                $apsSeen = $false
+                Write-Host ("[{0}] TX: {1}" -f (Get-Date -Format 'HH:mm:ss.fff'), $Command)
+            }
 
             while ($lineBuffer.Contains("`n")) {
                 $newline = $lineBuffer.IndexOf("`n")
@@ -64,6 +76,9 @@ try {
         Start-Sleep -Milliseconds 20
     }
 
+    if (-not $commandSent) {
+        Write-Warning ("The {0}-second wait elapsed before the command prompt appeared; '{1}' was not sent." -f $TimeoutSeconds, $Command)
+    }
     if (-not ($w25Seen -and $apsSeen)) {
         Write-Warning ("The {0}-second wait elapsed before both SPI probe lines arrived." -f $TimeoutSeconds)
     }
