@@ -10,8 +10,8 @@ User\main.o: ../User/main.c ../Debug/debug.h ../Peripheral/inc/ch32v20x.h \
  ../Peripheral/inc/ch32v20x_rtc.h ../Peripheral/inc/ch32v20x_spi.h \
  ../Peripheral/inc/ch32v20x_tim.h ../Peripheral/inc/ch32v20x_usart.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h \
- ../Peripheral/inc/ch32v20x_misc.h ../User/spi_storage.h \
- ../User/usart_console.h
+ ../Peripheral/inc/ch32v20x_misc.h ../User/mips_runtime.h \
+ ../User/spi_storage.h ../User/usart_console.h ../User/usb_usbd/usb_cdc.h
 
 ../Debug/debug.h:
 
@@ -65,6 +65,10 @@ User\main.o: ../User/main.c ../Debug/debug.h ../Peripheral/inc/ch32v20x.h \
 
 ../Peripheral/inc/ch32v20x_misc.h:
 
+../User/mips_runtime.h:
+
 ../User/spi_storage.h:
 
 ../User/usart_console.h:
+
+../User/usb_usbd/usb_cdc.h:

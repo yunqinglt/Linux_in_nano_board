@@ -11,8 +11,9 @@ User\usart_console.o: ../User/usart_console.c ../User/usart_console.h \
  ../Peripheral/inc/ch32v20x_rtc.h ../Peripheral/inc/ch32v20x_spi.h \
  ../Peripheral/inc/ch32v20x_tim.h ../Peripheral/inc/ch32v20x_usart.h \
  ../Peripheral/inc/ch32v20x_wwdg.h ../User/ch32v20x_it.h \
- ../Peripheral/inc/ch32v20x_misc.h ../User/spi_storage.h \
- ../lib/usart_proxy.h ../lib/usart_engine.h ../lib/ring_buffer.h
+ ../Peripheral/inc/ch32v20x_misc.h ../User/mips_runtime.h \
+ ../User/spi_storage.h ../lib/usart_proxy.h ../lib/usart_engine.h \
+ ../lib/ring_buffer.h
 
 ../User/usart_console.h:
 
@@ -69,6 +70,8 @@ User\usart_console.o: ../User/usart_console.c ../User/usart_console.h \
 ../User/ch32v20x_it.h:
 
 ../Peripheral/inc/ch32v20x_misc.h:
+
+../User/mips_runtime.h:
 
 ../User/spi_storage.h:
 

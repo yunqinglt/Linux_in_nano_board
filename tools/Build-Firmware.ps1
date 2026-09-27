@@ -30,6 +30,7 @@ $commonFlags = @(
     '-mabi=ilp32',
     '-msmall-data-limit=8',
     '-msave-restore',
+    '-flto',
     '-fmax-errors=20',
     '-Os',
     '-fmessage-length=0',
@@ -37,20 +38,50 @@ $commonFlags = @(
     '-ffunction-sections',
     '-fdata-sections',
     '-fno-common',
+    '-fno-unwind-tables',
+    '-fno-asynchronous-unwind-tables',
     '-Wunused',
     '-Wuninitialized',
     '-g'
 )
 $cFlags = $commonFlags + @(
     '-DDEBUG=2',
+    '-DCONFIG_IS_EMBEDDED_SYSTEM=1',
+    '-DMIPSEL_EMU_USER_CONFIG_HEADER="mipsel_emu_board_config.h"',
     '-I../Debug',
     '-I../Core',
     '-I../User',
+    '-I../User/usb_usbd',
     '-I../Peripheral/inc',
     '-I../lib',
+    '-I../third_party/stm32_in_c/user/src/mipsel-emu',
+    '-I../third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG',
+    '-I../third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/inc',
     '-std=gnu99'
 )
-$sourceDirectories = @('Core', 'Debug', 'Peripheral/src', 'User', 'lib')
+$sourceDirectories = @(
+    'Core', 'Debug', 'Peripheral/src', 'User', 'User/usb_usbd', 'lib'
+)
+$externalSources = @(
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/emu.c'; Object = 'Mipsel/emu.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/instru.c'; Object = 'Mipsel/instru.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/op.c'; Object = 'Mipsel/op.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/exception.c'; Object = 'Mipsel/exception.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/registers.c'; Object = 'Mipsel/registers.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/platform.c'; Object = 'Mipsel/platform.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/image_loader.c'; Object = 'Mipsel/image_loader.o' },
+    @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/uart16550.c'; Object = 'Mipsel/uart16550.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_core.c'; Object = 'USBD/usb_core.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_init.c'; Object = 'USBD/usb_init.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_int.c'; Object = 'USBD/usb_int.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_mem.c'; Object = 'USBD/usb_mem.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_regs.c'; Object = 'USBD/usb_regs.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/src/usb_sil.c'; Object = 'USBD/usb_sil.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG/usb_desc.c'; Object = 'USBD/usb_desc.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG/usb_prop.c'; Object = 'USBD/usb_prop.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG/usb_istr.c'; Object = 'USBD/usb_istr.o' },
+    @{ Path = 'third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/CONFIG/usb_pwr.c'; Object = 'USBD/usb_pwr.o' }
+)
 $objects = [System.Collections.Generic.List[string]]::new()
 
 # 运行一个工具链步骤，并把非零退出码提升为构建错误。
@@ -97,6 +128,29 @@ try {
                 ))
             $objects.Add($relativeObject)
         }
+    }
+
+    foreach ($source in $externalSources) {
+        $object = Join-Path $outputRoot $source.Object
+        $dependency = [System.IO.Path]::ChangeExtension($object, '.d')
+        $relativeObject = $source.Object
+        $relativeDependency = [System.IO.Path]::ChangeExtension($source.Object, '.d')
+        $relativeSource = "../$($source.Path)"
+        New-Item -ItemType Directory -Path (Split-Path -Parent $object) -Force |
+            Out-Null
+
+        Invoke-Checked -Executable $gcc -Description "Compile $relativeSource" `
+            -Arguments ($cFlags + @(
+                '-MMD',
+                '-MP',
+                "-MF$relativeDependency",
+                "-MT$relativeObject",
+                '-c',
+                '-o',
+                $relativeObject,
+                $relativeSource
+            ))
+        $objects.Add($relativeObject)
     }
 
     $startupDirectory = Join-Path $outputRoot 'Startup'

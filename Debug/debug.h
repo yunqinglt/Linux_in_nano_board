@@ -16,6 +16,9 @@
 #include "stdio.h"
 #include "ch32v20x.h"
 
+int Firmware_Printf(const char *format, ...);
+#define printf Firmware_Printf
+
 #ifdef __cplusplus
 extern "C" {
 #endif

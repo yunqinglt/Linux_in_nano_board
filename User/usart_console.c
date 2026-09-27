@@ -4,6 +4,7 @@
 
 #include "cmdline.h"
 #include "debug.h"
+#include "mips_runtime.h"
 #include "spi_storage.h"
 #include "usart_proxy.h"
 
@@ -14,6 +15,7 @@
 
 static cmdline_status_t command_help(cmdline_argument_t arguments);
 static cmdline_status_t command_probe(cmdline_argument_t arguments);
+static cmdline_status_t command_boot(cmdline_argument_t arguments);
 
 static cmdline_t g_cmdline;
 static cmdline_mount_t g_cmdline_mounts[1];
@@ -28,6 +30,7 @@ static uint8_t g_console_last_was_cr;
 static const cmdline_table_t g_command_table[] = {
     {"help", command_help},
     {"probe", command_probe},
+    {"boot", command_boot},
 };
 
 /* 以便于 COM19 脚本识别的固定格式打印两颗芯片 ID。 */
@@ -57,6 +60,7 @@ static cmdline_status_t command_help(cmdline_argument_t arguments)
     printf("Commands:\r\n");
     printf("  help   Show this command table\r\n");
     printf("  probe  Read W25Q64 and APS6404L IDs (resets APS6404L)\r\n");
+    printf("  boot   Verify image and start the MIPS Linux guest\r\n");
     return CMDLINE_STATUS_OK;
 }
 
@@ -71,7 +75,9 @@ static cmdline_status_t command_probe(cmdline_argument_t arguments)
         return CMDLINE_STATUS_ARGUMENT_COUNT;
     }
 
-    status = SpiStorage_Init();
+    /* guest 运行期间不复位 APS6404L，避免打断模拟器的内存访问。 */
+    status = MipsRuntime_IsRunning() ? SPI_STORAGE_STATUS_OK :
+             SpiStorage_Init();
     if(status != SPI_STORAGE_STATUS_OK)
     {
         printf("probe: SPI storage init failed: status=%u\r\n",
@@ -80,6 +86,28 @@ static cmdline_status_t command_probe(cmdline_argument_t arguments)
     }
     SpiStorage_GetInfo(&info);
     console_print_storage_info(&info);
+    return CMDLINE_STATUS_OK;
+}
+
+/* 校验 W25Q64 固定镜像，装载 Linux 内核后设置 guest 启动寄存器。 */
+static cmdline_status_t command_boot(cmdline_argument_t arguments)
+{
+    mips_runtime_status_t status;
+    uint32_t entry_address = 0u;
+
+    if(arguments.argc != 1u)
+    {
+        return CMDLINE_STATUS_ARGUMENT_COUNT;
+    }
+
+    printf("boot: checking manifest and payload CRC32...\r\n");
+    status = MipsRuntime_Boot(&entry_address);
+    if(status != MIPS_RUNTIME_STATUS_OK)
+    {
+        printf("boot failed: %s\r\n", MipsRuntime_StatusString(status));
+        return CMDLINE_STATUS_IO_ERROR;
+    }
+    printf("Linux boot at %08lx\r\n", (unsigned long)entry_address);
     return CMDLINE_STATUS_OK;
 }
 
@@ -117,7 +145,7 @@ static void console_prompt(void)
     printf("ch32> ");
 }
 
-/* 初始化 USART 代理并注册 help、probe 两个命令。 */
+/* 初始化 USART 代理并注册 help、probe、boot 三个命令。 */
 uint8_t UsartConsole_Init(void)
 {
     cmdline_status_t cmdline_status;
@@ -159,7 +187,7 @@ uint8_t UsartConsole_Init(void)
     g_console_line_overflow = 0u;
     g_console_last_was_cr = 0u;
     printf("Console: USART2 PA2/PA3, 115200 8N1\r\n");
-    printf("Command table: %u registered (help, probe)\r\n",
+    printf("Command table: %u registered (help, probe, boot)\r\n",
            (unsigned int)ARRAY_COUNT(g_command_table));
     printf("USART proxy: %s\r\n",
            proxy_status == USART_PROXY_STATUS_RECOVERED ? "recovered" : "ready");

@@ -12,8 +12,165 @@
  *******************************************************************************/
 #include "debug.h"
 
+#include <stdarg.h>
+#include <stddef.h>
+
 static uint8_t  p_us = 0;
 static uint16_t p_ms = 0;
+
+int _write(int fd, char *buf, int size);
+
+/* 通过 WCH _write 输出单个字符，避开 newlib 的 FILE/heap 缓冲状态。 */
+static void firmware_log_char(char character)
+{
+    (void)_write(1, &character, 1);
+}
+
+/* 输出无符号整数并按格式串要求补齐宽度。 */
+static unsigned int firmware_log_unsigned(unsigned long value,
+                                          unsigned int base,
+                                          unsigned int width,
+                                          char padding,
+                                          uint8_t uppercase)
+{
+    char digits[16];
+    unsigned int count = 0u;
+    unsigned int output_count = 0u;
+    const char *alphabet = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+
+    do
+    {
+        digits[count++] = alphabet[value % base];
+        value /= base;
+    } while(value != 0u && count < sizeof(digits));
+    while(count < width)
+    {
+        firmware_log_char(padding);
+        ++output_count;
+        --width;
+    }
+    while(count != 0u)
+    {
+        firmware_log_char(digits[--count]);
+        ++output_count;
+    }
+    return output_count;
+}
+
+/* 实现项目所用的轻量 printf 子集：s/c/d/u/x/X 和 l/宽度/零填充。 */
+int Firmware_Printf(const char *format, ...)
+{
+    va_list arguments;
+    int output_count = 0;
+
+    if(format == NULL)
+    {
+        return 0;
+    }
+    va_start(arguments, format);
+    while(*format != '\0')
+    {
+        unsigned int width = 0u;
+        char padding = ' ';
+        uint8_t long_value = 0u;
+        char conversion;
+
+        if(*format != '%')
+        {
+            firmware_log_char(*format++);
+            ++output_count;
+            continue;
+        }
+        ++format;
+        if(*format == '%')
+        {
+            firmware_log_char(*format++);
+            ++output_count;
+            continue;
+        }
+        if(*format == '0')
+        {
+            padding = '0';
+            ++format;
+        }
+        while(*format >= '0' && *format <= '9')
+        {
+            width = width * 10u + (unsigned int)(*format - '0');
+            ++format;
+        }
+        if(*format == 'l')
+        {
+            long_value = 1u;
+            ++format;
+        }
+        conversion = *format;
+        if(conversion != '\0')
+        {
+            ++format;
+        }
+
+        if(conversion == 's')
+        {
+            const char *text = va_arg(arguments, const char *);
+            if(text == NULL)
+            {
+                text = "(null)";
+            }
+            while(*text != '\0')
+            {
+                firmware_log_char(*text++);
+                ++output_count;
+            }
+        }
+        else if(conversion == 'c')
+        {
+            firmware_log_char((char)va_arg(arguments, int));
+            ++output_count;
+        }
+        else if(conversion == 'd' || conversion == 'i')
+        {
+            long value = long_value ? va_arg(arguments, long) :
+                                      (long)va_arg(arguments, int);
+            unsigned long magnitude;
+            if(value < 0)
+            {
+                firmware_log_char('-');
+                ++output_count;
+                magnitude = (unsigned long)(-(value + 1L)) + 1u;
+                if(width != 0u)
+                {
+                    --width;
+                }
+            }
+            else
+            {
+                magnitude = (unsigned long)value;
+            }
+            output_count += firmware_log_unsigned(magnitude, 10u, width,
+                                                  padding, 0u);
+        }
+        else if(conversion == 'u' || conversion == 'x' || conversion == 'X')
+        {
+            unsigned long value = long_value ? va_arg(arguments, unsigned long) :
+                                              (unsigned long)va_arg(arguments, unsigned int);
+            output_count += firmware_log_unsigned(
+                value, conversion == 'u' ? 10u : 16u,
+                width, padding, conversion == 'X');
+        }
+        else
+        {
+            firmware_log_char('%');
+            ++output_count;
+            if(conversion != '\0')
+            {
+                firmware_log_char(conversion);
+                ++output_count;
+            }
+        }
+    }
+    va_end(arguments);
+    return output_count;
+}
 
 #define DEBUG_DATA0_ADDRESS  ((volatile uint32_t*)0xE0000380)
 #define DEBUG_DATA1_ADDRESS  ((volatile uint32_t*)0xE0000384)

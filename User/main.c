@@ -10,8 +10,10 @@
 #include <stdint.h>
 
 #include "debug.h"
+#include "mips_runtime.h"
 #include "spi_storage.h"
 #include "usart_console.h"
+#include "usb_cdc.h"
 
 /* 启动时打印两颗 SPI 芯片的探测结果。 */
 static void print_storage_info(const spi_storage_info_t *info)
@@ -35,6 +37,7 @@ int main(void)
     spi_storage_info_t storage_info;
     spi_storage_status_t status;
     uint8_t console_ready;
+    uint8_t runtime_ready = 0u;
 
     NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
     SystemCoreClockUpdate();
@@ -52,6 +55,25 @@ int main(void)
     {
         printf("SPI storage init failed: status=%u\r\n", (unsigned int)status);
     }
+    else if(storage_info.psram_present)
+    {
+        runtime_ready = MipsRuntime_Init();
+        printf("APS6404L MIPS memory backend: %s\r\n",
+               runtime_ready ? "ready" : "failed");
+    }
+    else
+    {
+        printf("MIPS runtime unavailable: APS6404L was not detected\r\n");
+    }
+
+    if(!UsbCdc_Init())
+    {
+        printf("USB CDC initialization failed\r\n");
+    }
+    else
+    {
+        printf("USB CDC ACM: WCH USBD/PMA, EP1 notification, EP2 OUT, EP3 IN\r\n");
+    }
 
     console_ready = UsartConsole_Init();
     if(!console_ready)
@@ -64,6 +86,11 @@ int main(void)
         if(console_ready)
         {
             UsartConsole_Poll();
+        }
+        UsbCdc_Service();
+        if(runtime_ready)
+        {
+            MipsRuntime_RunSlice();
         }
     }
 }
