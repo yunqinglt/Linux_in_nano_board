@@ -8,6 +8,8 @@ microcontroller. The MCU provides the boot and emulation runtime; an external
 W25Q64 NOR flash stores the fixed Linux image and an APS6404L PSRAM provides the
 guest memory backend.
 
+![板卡实物与 Linux 启动日志](screenshot/board.jpg)
+
 ## Hardware
 
 | Function | Connection |
@@ -19,6 +21,8 @@ guest memory backend.
 | WCH-Link SDI | PA13 / PA14 |
 | Debug USART (Debug profile only) | PA2 / PA3, 115200 8N1 |
 | BOOT0 | PB8 switch |
+
+![板卡引脚与启动跳线](screenshot/pinout.png)
 
 The Product firmware deliberately stops USART1/2/3 before initialization. Its
 diagnostics and the emulated guest 16550 UART are exposed through USB CDC ACM.
@@ -78,6 +82,8 @@ MounRiver Studio and reset the board.
 6. Set the MIPS entry and boot arguments, print `Linux boot at ...`, and run
    bounded guest slices while forwarding the emulated 16550 UART over CDC.
 
+![固件加载镜像并进入 Linux](screenshot/bootstrap.png)
+
 Product logs are not sent to WCH-Link COM19. After flashing, select the new USB
 CDC ACM COM port and listen with:
 
@@ -105,6 +111,13 @@ python -m ch32_image_tool.cli inspect ..\..\flash\release\mipsel-emu-8m-v1.img
 The Vendor flasher is intentionally kept separate from the Product firmware.
 Only the archived flasher enumerates USB VID:PID `1209:2036`.
 
+![PyQt6 镜像工具与完整性验证](screenshot/mips_image_tool.png)
+
+The WCH-Link serial interface can be inspected in the Windows USB device tree;
+the Linux guest console is exposed after the runtime firmware starts.
+
+![WCH-Link USB 串口设备](screenshot/usb.png)
+
 ## Submodules
 
 Initialize the source dependencies after cloning:
@@ -125,8 +138,18 @@ are reproducible from the checked-in script. End-to-end Linux execution still
 requires manual board flashing and USB CDC observation because the board's
 programming step is currently performed through MounRiver Studio.
 
+![BusyBox 用户空间](screenshot/busybox.png)
+
 ## License and Upstream Sources
 
-This repository contains board-specific glue and build records. Third-party
-components retain their upstream licenses; consult each submodule and archived
-source tree before redistribution.
+Original board files, firmware glue, host tools and documentation in this
+repository are shared under **Creative Commons Attribution-NonCommercial 4.0
+International (CC BY-NC 4.0)**. Everyone may copy, study, modify and share the
+project for personal, educational and other non-commercial purposes, with
+attribution. Commercial sale, paid services and other commercial use are not
+permitted by this project license. See [LICENSE](LICENSE) for the terms.
+
+This non-commercial condition means the project is openly shared but is not an
+OSI-defined open-source software license. Third-party components retain their
+upstream licenses; consult each submodule and archived source tree before
+redistribution.

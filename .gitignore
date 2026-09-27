@@ -12,3 +12,6 @@
 /flash/host/out/
 /flash/host/.pytest_cache/
 /flash/host/**/__pycache__/
+
+# OSHWHub 投稿文章按用户要求只保留在本地，不随仓库发布。
+/docs/oshwhub_article.txt
