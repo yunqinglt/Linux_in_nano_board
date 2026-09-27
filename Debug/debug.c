@@ -15,6 +15,10 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#if defined(PRODUCT_BUILD) && PRODUCT_BUILD
+#include "usb_cdc.h"
+#endif
+
 static uint8_t  p_us = 0;
 static uint16_t p_ms = 0;
 
@@ -337,6 +341,15 @@ void SDI_Printf_Enable(void)
 __attribute__((used))
 int _write(int fd, char *buf, int size)
 {
+#if defined(PRODUCT_BUILD) && PRODUCT_BUILD
+    (void)fd;
+    if(buf == NULL || size <= 0)
+    {
+        return 0;
+    }
+    /* 正式版不初始化 USART2，所有 Firmware_Printf 字节进入 CDC 日志队列。 */
+    return (int)UsbCdc_LogWrite((const uint8_t *)buf, (size_t)size);
+#else
     int i = 0;
 #if (SDI_PRINT == SDI_PR_OPEN)
     int writeSize = size;
@@ -401,6 +414,7 @@ int _write(int fd, char *buf, int size)
     }
 #endif
     return size;
+#endif
 }
 
 /*********************************************************************

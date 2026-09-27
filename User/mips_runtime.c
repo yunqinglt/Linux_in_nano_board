@@ -17,6 +17,10 @@
 #define PSRAM_CACHE_LINE_SIZE   32u
 #define PSRAM_CACHE_LINE_COUNT  4u
 #define MIPS_RUN_SLICE_STEPS    32u
+#define BOOT_PROGRESS_INTERVAL  (256u * 1024u)
+#define ELF32_HEADER_SIZE       52u
+#define ELF32_PROGRAM_HEADER_SIZE 32u
+#define ELF32_PT_LOAD            1u
 
 typedef struct
 {
@@ -48,6 +52,91 @@ static uint8_t g_runtime_running;
 static uint8_t g_psram_io_fault;
 static uint32_t g_psram_fault_address;
 static uint32_t g_dtb_size;
+static mips_runtime_progress_callback_t g_progress_callback;
+static mips_runtime_progress_stage_t g_progress_stage;
+static uint32_t g_progress_total;
+static uint32_t g_progress_done;
+static uint32_t g_progress_next_report;
+
+/* 开始一个加载阶段，并立即给板级日志一个可见的 0% 事件。 */
+static void runtime_progress_begin(mips_runtime_progress_stage_t stage,
+                                   uint32_t total)
+{
+    g_progress_stage = stage;
+    g_progress_total = total;
+    g_progress_done = 0u;
+    g_progress_next_report = BOOT_PROGRESS_INTERVAL;
+    if(g_progress_callback != NULL)
+    {
+        g_progress_callback(stage, 0u, total);
+    }
+}
+
+/* 累计底层读写进度，并限制回调频率以免占满 SRAM 日志队列。 */
+static void runtime_progress_add(uint32_t amount)
+{
+    uint32_t next_done;
+
+    if(g_progress_callback == NULL)
+    {
+        return;
+    }
+    next_done = g_progress_done + amount;
+    if(next_done < g_progress_done)
+    {
+        next_done = UINT32_MAX;
+    }
+    if(g_progress_total != 0u && next_done > g_progress_total)
+    {
+        next_done = g_progress_total;
+    }
+    g_progress_done = next_done;
+    if(g_progress_done >= g_progress_next_report ||
+       (g_progress_total != 0u && g_progress_done == g_progress_total))
+    {
+        g_progress_callback(g_progress_stage, g_progress_done,
+                            g_progress_total);
+        if(g_progress_done <= UINT32_MAX - BOOT_PROGRESS_INTERVAL)
+        {
+            g_progress_next_report = g_progress_done +
+                                      BOOT_PROGRESS_INTERVAL;
+        }
+        else
+        {
+            g_progress_next_report = UINT32_MAX;
+        }
+    }
+}
+
+/* 强制发出一个阶段完成事件，即使该阶段实际只写入少量字节。 */
+static void runtime_progress_end(mips_runtime_progress_stage_t stage,
+                                 uint32_t total)
+{
+    g_progress_stage = stage;
+    g_progress_total = total;
+    g_progress_done = total;
+    g_progress_next_report = UINT32_MAX;
+    if(g_progress_callback != NULL)
+    {
+        g_progress_callback(stage, total, total);
+    }
+}
+
+/* 将通用 image loader 错误映射为产品可操作的 Flash/PSRAM 故障。 */
+static mips_runtime_status_t runtime_map_image_status(
+    mipsel_image_status_t image_status,
+    mips_runtime_status_t fallback)
+{
+    if(image_status == MIPSEL_IMAGE_SOURCE_IO)
+    {
+        return MIPS_RUNTIME_STATUS_FLASH_IO;
+    }
+    if(image_status == MIPSEL_IMAGE_MEMORY_IO)
+    {
+        return MIPS_RUNTIME_STATUS_PSRAM_IO;
+    }
+    return fallback;
+}
 
 /* 按 manifest 規定的 little-endian 格式读取 16 位整数。 */
 static uint16_t image_read_le16(const uint8_t *bytes)
@@ -165,6 +254,12 @@ static bool psram_memory_write(void *opaque, uint32_t pa,
         {
             line->valid = 0u;
         }
+    }
+    if(g_progress_stage == MIPS_RUNTIME_PROGRESS_PT_LOAD ||
+       g_progress_stage == MIPS_RUNTIME_PROGRESS_DTB ||
+       g_progress_stage == MIPS_RUNTIME_PROGRESS_INITRAMFS)
+    {
+        runtime_progress_add((uint32_t)length);
     }
     return true;
 }
@@ -321,6 +416,7 @@ static mips_runtime_status_t image_payloads_verify(void)
             crc = image_crc32_update(crc, g_image_chunk, amount);
             address += amount;
             remaining -= amount;
+            runtime_progress_add(amount);
         }
         if(crc != g_image_entries[entry_index].crc32)
         {
@@ -352,6 +448,61 @@ static bool payload_image_read(void *opaque, uint32_t offset,
            SPI_STORAGE_STATUS_OK;
 }
 
+/* 预扫描 ELF program header，得到所有 PT_LOAD 的实际 PSRAM 写入总量。 */
+static uint32_t image_pt_load_memory_total(const mipsel_image_t *image)
+{
+    uint8_t header[ELF32_HEADER_SIZE];
+    uint8_t program_header[ELF32_PROGRAM_HEADER_SIZE];
+    uint32_t program_header_offset;
+    uint16_t program_header_size;
+    uint16_t program_header_count;
+    uint64_t program_header_end;
+    uint32_t total = 0u;
+    uint16_t index;
+
+    if(image == NULL || image->read == NULL || image->size < sizeof(header) ||
+       !image->read(image->opaque, 0u, header, sizeof(header)) ||
+       header[0] != 0x7fu || header[1] != 'E' || header[2] != 'L' ||
+       header[3] != 'F')
+    {
+        return 0u;
+    }
+    program_header_offset = image_read_le32(&header[28]);
+    program_header_size = image_read_le16(&header[42]);
+    program_header_count = image_read_le16(&header[44]);
+    program_header_end = (uint64_t)program_header_offset +
+                         (uint64_t)program_header_size *
+                         (uint64_t)program_header_count;
+    if(program_header_size < ELF32_PROGRAM_HEADER_SIZE ||
+       program_header_offset > image->size ||
+       program_header_end > image->size)
+    {
+        return 0u;
+    }
+    for(index = 0u; index < program_header_count; ++index)
+    {
+        uint32_t offset = program_header_offset +
+                          (uint32_t)index * program_header_size;
+        uint32_t segment_size;
+        if(!image->read(image->opaque, offset, program_header,
+                        sizeof(program_header)))
+        {
+            return 0u;
+        }
+        if(image_read_le32(&program_header[0]) != ELF32_PT_LOAD)
+        {
+            continue;
+        }
+        segment_size = image_read_le32(&program_header[20]);
+        if(segment_size > UINT32_MAX - total)
+        {
+            return 0u;
+        }
+        total += segment_size;
+    }
+    return total;
+}
+
 /* 为 ELF/FDT loader 构造指向固定 manifest 项的只读镜像视图。 */
 static mipsel_image_t payload_as_image(uint32_t index)
 {
@@ -379,10 +530,17 @@ uint8_t MipsRuntime_Init(void)
     return 1u;
 }
 
+/* 安装或清除产品层的启动进度回调。 */
+void MipsRuntime_SetProgressCallback(mips_runtime_progress_callback_t callback)
+{
+    g_progress_callback = callback;
+}
+
 /* 按 manifest 顺序校验、加载 ELF/DTB/initramfs，再设置 Linux handoff。 */
 mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
 {
     mips_runtime_status_t status;
+    mipsel_image_status_t image_status;
     mipsel_image_t kernel_image;
     mipsel_image_t dtb_image;
     mipsel_image_t initramfs_image;
@@ -390,6 +548,7 @@ mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
     size_t range_count;
     mipsel_memory_range_t dtb_reservation;
     mipsel_memory_range_t initramfs_range;
+    uint32_t pt_load_total;
 
     if(!g_runtime_initialized)
     {
@@ -402,16 +561,27 @@ mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
 
     g_psram_io_fault = 0u;
     memset(g_psram_cache, 0, sizeof(g_psram_cache));
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_MANIFEST, 1u);
     status = image_manifest_load();
     if(status != MIPS_RUNTIME_STATUS_OK)
     {
         return status;
     }
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_MANIFEST, 1u);
+
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_VERIFY,
+                           g_image_entries[0].data_size +
+                           g_image_entries[1].data_size +
+                           g_image_entries[2].data_size);
     status = image_payloads_verify();
     if(status != MIPS_RUNTIME_STATUS_OK)
     {
         return status;
     }
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_VERIFY,
+                         g_image_entries[0].data_size +
+                         g_image_entries[1].data_size +
+                         g_image_entries[2].data_size);
 
     kernel_image = payload_as_image(0u);
     dtb_image = payload_as_image(1u);
@@ -419,20 +589,39 @@ mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
     dtb_reservation.start = MIPSEL_EMU_DTB_PHYSICAL_ADDRESS;
     dtb_reservation.end = MIPSEL_EMU_DTB_PHYSICAL_ADDRESS +
                           MIPSEL_EMU_DTB_RESERVED_SIZE;
-    status = MIPSEL_IMAGE_OK == mipsel_elf_load(
-        &kernel_image, &dtb_reservation, 1u, &g_kernel_info) ?
-        MIPS_RUNTIME_STATUS_OK : MIPS_RUNTIME_STATUS_KERNEL_LOAD;
+    pt_load_total = image_pt_load_memory_total(&kernel_image);
+    if(pt_load_total == 0u)
+    {
+        pt_load_total = kernel_image.size;
+    }
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_PT_LOAD, pt_load_total);
+    image_status = mipsel_elf_load(&kernel_image, &dtb_reservation, 1u,
+                                   &g_kernel_info);
+    status = image_status == MIPSEL_IMAGE_OK ? MIPS_RUNTIME_STATUS_OK :
+             runtime_map_image_status(image_status,
+                                      MIPS_RUNTIME_STATUS_KERNEL_LOAD);
     if(status != MIPS_RUNTIME_STATUS_OK)
     {
+        if(g_psram_io_fault)
+        {
+            return MIPS_RUNTIME_STATUS_PSRAM_IO;
+        }
         return status;
     }
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_PT_LOAD,
+                         pt_load_total);
 
-    if(mipsel_dtb_load(&dtb_image, MIPSEL_EMU_DTB_PHYSICAL_ADDRESS,
-                       MIPSEL_EMU_DTB_RESERVED_SIZE, &g_dtb_size) !=
-       MIPSEL_IMAGE_OK)
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_DTB, dtb_image.size);
+    image_status = mipsel_dtb_load(&dtb_image,
+                                   MIPSEL_EMU_DTB_PHYSICAL_ADDRESS,
+                                   MIPSEL_EMU_DTB_RESERVED_SIZE,
+                                   &g_dtb_size);
+    if(image_status != MIPSEL_IMAGE_OK)
     {
-        return MIPS_RUNTIME_STATUS_DTB_LOAD;
+        return runtime_map_image_status(image_status,
+                                        MIPS_RUNTIME_STATUS_DTB_LOAD);
     }
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_DTB, dtb_image.size);
 
     if(g_kernel_info.load_segment_count > MIPSEL_EMU_ELF_MAX_LOAD_SEGMENTS)
     {
@@ -447,17 +636,28 @@ mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
             g_kernel_info.load_segments[index].end;
     }
     g_reserved_ranges[range_count++] = dtb_reservation;
-    if(mipsel_initramfs_load(&initramfs_image, g_reserved_ranges,
-                             range_count, MIPSEL_EMU_INITRAMFS_ALIGNMENT,
-                             &initramfs_range) != MIPSEL_IMAGE_OK)
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_INITRAMFS,
+                           initramfs_image.size);
+    image_status = mipsel_initramfs_load(&initramfs_image, g_reserved_ranges,
+                                         range_count,
+                                         MIPSEL_EMU_INITRAMFS_ALIGNMENT,
+                                         &initramfs_range);
+    if(image_status != MIPSEL_IMAGE_OK)
     {
-        return MIPS_RUNTIME_STATUS_INITRAMFS_LOAD;
+        return runtime_map_image_status(image_status,
+                                        MIPS_RUNTIME_STATUS_INITRAMFS_LOAD);
     }
-    if(mipsel_fdt_set_initramfs(MIPSEL_EMU_DTB_PHYSICAL_ADDRESS,
-                                g_dtb_size, initramfs_range.start,
-                                initramfs_range.end) != MIPSEL_IMAGE_OK)
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_INITRAMFS,
+                         initramfs_image.size);
+
+    runtime_progress_begin(MIPS_RUNTIME_PROGRESS_HANDOFF, 1u);
+    image_status = mipsel_fdt_set_initramfs(
+        MIPSEL_EMU_DTB_PHYSICAL_ADDRESS, g_dtb_size,
+        initramfs_range.start, initramfs_range.end);
+    if(image_status != MIPSEL_IMAGE_OK)
     {
-        return MIPS_RUNTIME_STATUS_DTB_UPDATE;
+        return runtime_map_image_status(image_status,
+                                        MIPS_RUNTIME_STATUS_DTB_UPDATE);
     }
 
     memset(g_psram_cache, 0, sizeof(g_psram_cache));
@@ -468,6 +668,7 @@ mips_runtime_status_t MipsRuntime_Boot(uint32_t *entry_address)
     g_mips_registers_pointer->gpr[4] = 0xfffffffeu;
     g_mips_registers_pointer->gpr[5] = MIPSEL_EMU_DTB_VIRTUAL_ADDRESS;
     g_runtime_running = 1u;
+    runtime_progress_end(MIPS_RUNTIME_PROGRESS_HANDOFF, 1u);
     if(entry_address != NULL)
     {
         *entry_address = g_kernel_info.entry;
@@ -524,6 +725,8 @@ const char *MipsRuntime_StatusString(mips_runtime_status_t status)
             return "initramfs load failed";
         case MIPS_RUNTIME_STATUS_DTB_UPDATE:
             return "DTB has no writable initramfs properties";
+        case MIPS_RUNTIME_STATUS_PSRAM_IO:
+            return "APS6404L PSRAM read/write failed; check hardware";
         default:
             return "unknown runtime error";
     }

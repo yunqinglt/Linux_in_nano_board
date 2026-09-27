@@ -2,3 +2,13 @@
 /third_party/ch32v20x-main/
 /third_party/openocd_wchlink-rv-master/
 /third_party/riscv-openocd-wch-wch-linke-sdi/
+
+# MounRiver 编译中间文件；固定下载路径的 Product HEX 例外保留。
+/obj/*
+!/obj/CH32V203F6P.hex
+
+# 主机端打包、测试和运行日志均为可再生文件。
+/host/out/
+/flash/host/out/
+/flash/host/.pytest_cache/
+/flash/host/**/__pycache__/

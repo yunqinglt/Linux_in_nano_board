@@ -48,10 +48,10 @@
 				"post_script": "",
 				"post_script_description": "",
 				"excludeResources": [
-					"${project}/Startup/startup_ch32v20x_D8W.S",
-					"${project}/Startup/startup_ch32v20x_D8.S",
 					"${project}/flash",
-					"${project}/third_party"
+					"${project}/third_party",
+					"${project}/Startup/startup_ch32v20x_D8W.S",
+					"${project}/Startup/startup_ch32v20x_D8.S"
 				],
 				"optimization": {
 					"level": "size",

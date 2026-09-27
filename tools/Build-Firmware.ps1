@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$ProjectRoot = '',
-    [string]$MounRiverRoot = 'E:\MounRiver\MounRiver_Studio2'
+    [string]$MounRiverRoot = 'E:\MounRiver\MounRiver_Studio2',
+    [ValidateSet('Product', 'Debug')]
+    [string]$Profile = 'Product'
 )
 
 Set-StrictMode -Version Latest
@@ -11,13 +13,14 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
     $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
 
-$toolBin = Join-Path $MounRiverRoot `
-    'resources\app\resources\win32\components\WCH\Toolchain\RISC-V Embedded GCC\bin'
+$toolBin = Join-Path $MounRiverRoot 'resources\app\resources\win32\components\WCH\Toolchain\RISC-V Embedded GCC\bin'
 $gcc = Join-Path $toolBin 'riscv-none-embed-gcc.exe'
 $objcopy = Join-Path $toolBin 'riscv-none-embed-objcopy.exe'
 $objdump = Join-Path $toolBin 'riscv-none-embed-objdump.exe'
 $sizeTool = Join-Path $toolBin 'riscv-none-embed-size.exe'
 $outputRoot = Join-Path $ProjectRoot 'obj'
+$productBuild = $Profile -eq 'Product'
+$productDefine = if ($productBuild) { '1' } else { '0' }
 
 foreach ($tool in @($gcc, $objcopy, $objdump, $sizeTool)) {
     if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) {
@@ -46,8 +49,9 @@ $commonFlags = @(
 )
 $cFlags = $commonFlags + @(
     '-DDEBUG=2',
+    "-DPRODUCT_BUILD=$productDefine",
     '-DCONFIG_IS_EMBEDDED_SYSTEM=1',
-    '-DMIPSEL_EMU_USER_CONFIG_HEADER="mipsel_emu_board_config.h"',
+    '-DMIPSEL_EMU_USER_CONFIG_HEADER=<mipsel_emu_board_config.h>',
     '-I../Debug',
     '-I../Core',
     '-I../User',
@@ -59,9 +63,26 @@ $cFlags = $commonFlags + @(
     '-I../third_party/openwch-ch32v20x/EVT/EXAM/USB/USBD/SimulateCDC/User/USBLIB/USB-Driver/inc',
     '-std=gnu99'
 )
-$sourceDirectories = @(
-    'Core', 'Debug', 'Peripheral/src', 'User', 'User/usb_usbd', 'lib'
-)
+$sourceDirectories = @('Core', 'Debug', 'Peripheral/src',
+                       'User', 'User/usb_usbd', 'lib')
+if ($productBuild) {
+    $sourceDirectories += 'Product'
+}
+
+# 产品配置排除调试入口、USART 命令行和其 ISR；这些文件仍保留在 User/lib，
+# 通过 -Profile Debug 可完整恢复上一版调试固件，不修改或删除原实现。
+$excludedSources = @()
+if ($productBuild) {
+    $excludedSources = @(
+        'User/main.c',
+        'User/ch32v20x_it.c',
+        'User/usart_console.c',
+        'lib/cmdline.c',
+        'lib/ring_buffer.c',
+        'lib/usart_engine.c',
+        'lib/usart_proxy.c'
+    )
+}
 $externalSources = @(
     @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/emu.c'; Object = 'Mipsel/emu.o' },
     @{ Path = 'third_party/stm32_in_c/user/src/mipsel-emu/instru.c'; Object = 'Mipsel/instru.o' },
@@ -86,16 +107,10 @@ $objects = [System.Collections.Generic.List[string]]::new()
 
 # 运行一个工具链步骤，并把非零退出码提升为构建错误。
 function Invoke-Checked {
-    param(
-        [Parameter(Mandatory)] [string]$Executable,
-        [Parameter(Mandatory)] [object[]]$Arguments,
-        [Parameter(Mandatory)] [string]$Description
-    )
+    param([string]$Executable, [object[]]$Arguments, [string]$Description)
 
     & $Executable @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Description failed with exit code $LASTEXITCODE"
-    }
+    if ($LASTEXITCODE -ne 0) { throw "$Description failed with exit code $LASTEXITCODE" }
 }
 
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
@@ -106,8 +121,13 @@ try {
         $objectDirectory = Join-Path $outputRoot $directory
         New-Item -ItemType Directory -Path $objectDirectory -Force | Out-Null
 
-        foreach ($source in Get-ChildItem -LiteralPath $sourceRoot -Filter '*.c' -File |
-                     Sort-Object Name) {
+        $sourceFiles = Get-ChildItem -LiteralPath $sourceRoot -Filter '*.c' -File |
+                       Sort-Object Name
+        foreach ($source in $sourceFiles) {
+            $relativeSourceName = "$directory/$($source.Name)"
+            if ($excludedSources -contains $relativeSourceName) {
+                continue
+            }
             $stem = [System.IO.Path]::GetFileNameWithoutExtension($source.Name)
             $object = Join-Path $objectDirectory "$stem.o"
             $dependency = Join-Path $objectDirectory "$stem.d"
@@ -136,8 +156,7 @@ try {
         $relativeObject = $source.Object
         $relativeDependency = [System.IO.Path]::ChangeExtension($source.Object, '.d')
         $relativeSource = "../$($source.Path)"
-        New-Item -ItemType Directory -Path (Split-Path -Parent $object) -Force |
-            Out-Null
+        New-Item -ItemType Directory -Path (Split-Path -Parent $object) -Force | Out-Null
 
         Invoke-Checked -Executable $gcc -Description "Compile $relativeSource" `
             -Arguments ($cFlags + @(
@@ -203,4 +222,4 @@ finally {
     Pop-Location
 }
 
-Write-Host "Firmware ready: $(Join-Path $outputRoot 'CH32V203F6P.hex')"
+Write-Host "Firmware ready ($Profile): $(Join-Path $outputRoot 'CH32V203F6P.hex')"

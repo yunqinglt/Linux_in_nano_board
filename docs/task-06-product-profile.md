@@ -1,4 +1,8 @@
-# 刷写产品归档与运行固件基线
+# 刷写产品归档与运行固件基线（历史记录）
+
+> 本文记录 Product profile 切换前的调试基线。当前正式版已经关闭
+> USART1/2/3，并通过 USB CDC 输出；最新行为见仓库根目录 `README.md` 和
+> `docs/task-08-product-boot.md`。
 
 ## 本轮边界
 
