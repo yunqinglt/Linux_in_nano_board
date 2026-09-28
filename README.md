@@ -28,6 +28,8 @@ The Product firmware deliberately stops USART1/2/3 before initialization. Its
 diagnostics and the emulated guest 16550 UART are exposed through USB CDC ACM.
 The historical Debug firmware keeps the USART2 command line for board bring-up.
 
+[\>Hardware design<](https://oshwhub.com/minglasroot/project_kbtuzfcn?jspm=hub.zy.zp.gc1___hub.gx.zp&jlc_vid=FQcLBVcDElVcX1xRRVRZUFRUEVdfVlZXFlBeX1NWFgQxVlNfR1RfX1RTTldcVTsOAxUeFF5JWAIASQYPGQZABAsLWD4BFAwRHxQMSQcJGg%3D%3D)
+
 ## Repository Layout
 
 - `Product/`: release boot path; USB CDC diagnostics, storage checks and Linux
